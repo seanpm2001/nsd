@@ -7,7 +7,7 @@ sinclude(dnstap/dnstap.m4)
 
 AC_INIT([NSD],[4.8.1],[https://github.com/NLnetLabs/nsd/issues or nsd-bugs@nlnetlabs.nl])
 AC_CONFIG_HEADERS([config.h])
-
+AC_CANONICAL_TARGET
 #
 # Setup the standard programs
 # https://www.gnu.org/software/autoconf/manual/autoconf-2.69/html_node/Setting-Output-Variables.html
@@ -489,7 +489,11 @@ fi
 # Checks for header files.
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([time.h arpa/inet.h signal.h string.h strings.h fcntl.h limits.h netinet/in.h netinet/tcp.h stddef.h sys/param.h sys/socket.h sys/un.h syslog.h unistd.h sys/select.h stdarg.h stdint.h netdb.h sys/bitypes.h tcpd.h glob.h grp.h endian.h sys/random.h ifaddrs.h],,, [AC_INCLUDES_DEFAULT])
-
+if echo $target_os | $GREP -i linux > /dev/null; then
+	AC_CHECK_DECL([SA_NOCLDWAIT], [
+		AC_DEFINE(USE_SA_NOCLDWAIT, 1, [Define this to not transform children into zombies when they terminate. Only safe on linux.])
+	], [], [[#include <signal.h>]])
+fi
 AC_DEFUN([CHECK_VALIST_DEF],
 [
 AC_REQUIRE([AC_PROG_CC])
