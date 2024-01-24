@@ -1085,7 +1085,7 @@ print_zonestatus(RES* ssl, xfrd_state_type* xfrd, struct zone_options* zo)
 			return 0;
 		if (zone_is_slave(zo)) {
 			if(!ssl_printf(ssl, "	catalog-invalid: a catalog "
-					"producer cannot be a slave zone"))
+					"producer cannot be a secondary zone"))
 				return 0;
 		}
 	}
@@ -2020,7 +2020,8 @@ do_repattern(RES* ssl, xfrd_state_type* xfrd)
 
 	(void)ssl_printf(ssl, "reconfig start, read %s\n", cfgfile);
 	opt = nsd_options_create(region);
-	if(!parse_options_file(opt, cfgfile, &print_ssl_cfg_err, &ssl)) {
+	if(!parse_options_file(opt, cfgfile, &print_ssl_cfg_err, &ssl,
+				xfrd->nsd->options)) {
 		/* error already printed */
 		region_destroy(region);
 		return;
