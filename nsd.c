@@ -1519,7 +1519,7 @@ main(int argc, char *argv[])
 	/* Setup the signal handling... */
 	action.sa_handler = sig_handler;
 	sigfillset(&action.sa_mask);
-	action.sa_flags = SA_NOCLDWAIT;
+	action.sa_flags = 0;
 	sigaction(SIGTERM, &action, NULL);
 	sigaction(SIGHUP, &action, NULL);
 	sigaction(SIGINT, &action, NULL);
