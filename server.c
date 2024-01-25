@@ -2777,8 +2777,9 @@ server_main(struct nsd *nsd)
 				break;
 
 			/* timeout to collect processes. In case no sigchild happens. */
-			timeout_spec.tv_sec = 60;
-			timeout_spec.tv_nsec = 0;
+			timeout_spec.tv_sec = 0;
+			/* timeout_spec.tv_nsec = 500000000L; */
+			timeout_spec.tv_nsec = 100000000L;
 
 			/* listen on ports, timeout for collecting terminated children */
 			if(netio_dispatch(netio, &timeout_spec, 0) == -1) {
