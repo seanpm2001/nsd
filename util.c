@@ -63,16 +63,18 @@ static log_function_type *current_log_function = log_file;
 static FILE *current_log_file = NULL;
 int log_time_asc = 1;
 
+#ifdef USE_LOG_PROCESS_ROLE
 void
-log_set_ident(const char *ident)
+log_set_process_role(const char *process_role)
 {
-	global_ident = ident;
+	global_ident = process_role;
 }
+#endif
 
 void
 log_init(const char *ident)
 {
-	log_set_ident(ident);
+	global_ident = ident;
 	current_log_file = stderr;
 }
 

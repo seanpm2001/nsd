@@ -213,6 +213,10 @@ xfrd_init_catalog_consumer_zone(xfrd_state_type* xfrd,
 			"only one single catalog consumer zone allowed");
 	}
 #endif
+	if(zone->pattern && zone->pattern->store_ixfr) {
+		/* Don't process ixfrs from xfrd */
+		zone->pattern->store_ixfr = 0;
+	}
 }
 
 void
@@ -317,15 +321,23 @@ label_plus_dname(const char* label, const dname_type* dname)
 	/* In reversed order and first copy with memmove, so we can nest.
 	 * i.e. label_plus_dname(label1, label_plus_dname(label2, dname))
 	 */
-	memmove(name.bytes + dname->label_count + 2 + ll,
-		((void*)dname) + 2 + dname->label_count, dname->name_size + 1);
-	memcpy(name.bytes + dname->label_count + 2, label, ll);
-	name.bytes[dname->label_count + 1] = ll;
-	name.bytes[dname->label_count] = 0;
+	memmove(name.bytes + dname->label_count
+			+ 1 /* label_count increases by one */
+			+ 1 /* label type/length byte for label */ + ll,
+		((void*)dname) + sizeof(dname_type) + dname->label_count,
+		dname->name_size);
+	memcpy(name.bytes + dname->label_count
+			+ 1 /* label_count increases by one */
+			+ 1 /* label type/length byte for label */, label, ll);
+	name.bytes[dname->label_count + 1] = ll; /* label type/length byte */
+	name.bytes[dname->label_count] = 0; /* first label follows last
+	                                     * label_offsets element */
 	for (i = 0; i < dname->label_count; i++)
-		name.bytes[i] = ((uint8_t*)(void*)dname)[2+i] + ll + 1;
-	name.dname.label_count = dname->label_count + 1;
-	name.dname.name_size   = dname->name_size   + ll + 1;
+		name.bytes[i] = ((uint8_t*)(void*)dname)[sizeof(dname_type)+i]
+			+ 1 /* label type/length byte for label */ + ll;
+	name.dname.label_count = dname->label_count + 1 /* label_count incr. */;
+	name.dname.name_size   = dname->name_size   + ll
+	                                            + 1 /* label length */;
 	return &name.dname;
 }
 
@@ -435,11 +447,12 @@ const char *invalid_catalog_consumer_zone(struct zone_options* zone)
 
 void xfrd_process_catalog_consumer_zones()
 {
-#ifndef MULTIPLE_CATALOG_CONSUMER_ZONES
-	xfrd_process_catalog_consumer_zone(xfrd_one_catalog_consumer_zone());
-#else
 	struct xfrd_catalog_consumer_zone* consumer_zone;
 
+#ifndef MULTIPLE_CATALOG_CONSUMER_ZONES
+	if((consumer_zone = xfrd_one_catalog_consumer_zone()))
+		xfrd_process_catalog_consumer_zone(consumer_zone);
+#else
 	RBTREE_FOR(consumer_zone, struct xfrd_catalog_consumer_zone*,
 			xfrd->catalog_consumer_zones) {
 		xfrd_process_catalog_consumer_zone(consumer_zone);
@@ -496,8 +509,7 @@ xfrd_process_catalog_consumer_zone(
 	 */
 	enum { try_to_add, retry_to_add, just_add } mode;
 
-	if (!consumer_zone)
-		return;
+	assert(consumer_zone);
 	if (!xfrd->nsd->db) {
 		xfrd->nsd->db = namedb_open(xfrd->nsd->options);
 	}
@@ -616,8 +628,8 @@ retry_adding:
 			||  rrset->rrs[i].rdatas[0].data[0] < 2
 
 			    /* single rdata atom with single TXT rdata field */
-			||  ((uint8_t*)(rrset->rrs[i].rdatas[0].data + 1))[0]
-			  != (uint8_t) (rrset->rrs[i].rdatas[0].data[0]-1))
+			||  (uint16_t)(((uint8_t*)(rrset->rrs[i].rdatas[0].data + 1))[0])
+			  != (uint16_t) (rrset->rrs[i].rdatas[0].data[0]-1))
 				continue;
 
 			memcpy( group_value
@@ -671,7 +683,7 @@ retry_adding:
 			   */
 		else {
 			int cmp = 0;
-#ifndef NDEBUF
+#ifndef NDEBUG
 			char member_id_str[5 * MAXDOMAINLEN];
 			domain_to_string_buf(member_id, member_id_str);
 #endif
@@ -690,7 +702,7 @@ retry_adding:
 				 */
 				struct catalog_member_zone* to_delete =
 					cursor_cmz(cursor);
-#ifndef NDEBUF
+#ifndef NDEBUG
 				const char *member_id_to_delete_str =
 				   dname_to_string(to_delete->member_id, NULL);
 #endif
@@ -710,7 +722,7 @@ retry_adding:
 						dname_to_string(
 							cursor_member_id(cursor),
 							NULL)));
-			};
+			}
 			if (cursor != RBTREE_NULL && cmp == 0) {
 				/* member_id is also in an current catalog
 				 * member zone, and cursor is pointing
@@ -966,10 +978,8 @@ xfrd_add_catalog_producer_member(struct catalog_member_zone* cmz)
 		char id_label[sizeof(uint32_t)*2+1];
 		uint32_t new_id = (uint32_t)random_generate(0x7fffffff);
 
-		id_label[hex_ntop( (void *)&new_id
-		                 , sizeof(uint32_t)
-		                 , id_label
-		                 , sizeof(id_label))] = 0;
+		hex_ntop((void*)&new_id, sizeof(uint32_t), id_label, sizeof(id_label));
+		id_label[sizeof(uint32_t)*2] = 0;
 		cmz->member_id = label_plus_dname(id_label,
 				label_plus_dname("zones", producer_name));
 		DEBUG(DEBUG_XFRD, 1, (LOG_INFO, "does member_id %s exist?",

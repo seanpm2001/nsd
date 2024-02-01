@@ -15,6 +15,7 @@
 
 #include "buffer.h"
 #include "region-allocator.h"
+#include "dns.h" /* for MAXDOMAINLEN */
 
 #if defined(NAMEDB_UPPERCASE) || defined(USE_NAMEDB_UPPERCASE)
 #define DNAME_NORMALIZE        toupper
@@ -358,7 +359,7 @@ const char *dname_to_string(const dname_type *dname,
  */
 const char *dname_to_string_buf(const dname_type *dname,
                                 const dname_type *origin,
-                                char *buf);
+                                char buf[MAXDOMAINLEN * 5]);
 
 /*
  * Create a dname containing the single label specified by STR
